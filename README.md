@@ -5,11 +5,15 @@ systems.
 
 ## Run
 
-Requiere Python 3.
+Requires Python 3.14.
 
 ```sh
 python3 main.py
 ```
 
-FastAPI, PostgreSQL, webhooks, workers, and Docker will be added in later
-steps.
+## Quality checks
+
+```sh
+uvx --from ruff==0.16.9 ruff check .
+uvx --from ruff==0.16.9 ruff format --check .
+```
