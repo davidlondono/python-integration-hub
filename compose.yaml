@@ -9,6 +9,16 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  worker:
+    build: .
+    command: ["python", "worker.py"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://integration_hub@db:5432/integration_hub
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   migrate:
     build: .
     command: ["alembic", "upgrade", "head"]

@@ -122,6 +122,7 @@ class Job(Base):
     sync_id: Mapped[UUID] = mapped_column(Uuid)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     attempts: Mapped[int] = mapped_column(default=0)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     available_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
