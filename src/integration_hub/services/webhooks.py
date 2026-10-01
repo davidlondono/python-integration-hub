@@ -1,18 +1,15 @@
 import hashlib
 import hmac
-from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
-from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
-from database import SessionLocal
-from models import Company, Integration, Job, Sync, WebhookEvent
-from schemas import (
+from integration_hub.database import SessionLocal
+from integration_hub.models import Company, Integration, Job, Sync, WebhookEvent
+from integration_hub.schemas import (
     CustomerEventData,
     InvoiceEventData,
     PaymentEventData,
@@ -20,34 +17,13 @@ from schemas import (
     WebhookEnvelope,
 )
 
-app = FastAPI(title="Integration Hub")
+
+class InvalidWebhookSignature(Exception):
+    pass
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.post("/webhooks/{source}", status_code=202, response_model=WebhookAccepted)
-async def receive_webhook(
-    source: Literal["crm", "billing"],
-    request: Request,
-    tenant_id: Annotated[
-        str, Header(alias="X-Tenant-ID", min_length=1, max_length=100)
-    ],
-    signature: Annotated[
-        str, Header(alias="X-Signature-SHA256", min_length=64, max_length=64)
-    ],
-) -> WebhookAccepted:
-    raw_body = bytearray()
-    async for chunk in request.stream():
-        if len(raw_body) + len(chunk) > 1_048_576:
-            raise HTTPException(status_code=413, detail="Webhook payload is too large")
-        raw_body.extend(chunk)
-
-    return await run_in_threadpool(
-        persist_webhook, source, tenant_id, signature, bytes(raw_body)
-    )
+class InvalidWebhookEvent(Exception):
+    pass
 
 
 def persist_webhook(
@@ -71,17 +47,13 @@ def persist_webhook(
             )
             secret = integration.config.get("webhook_secret") if integration else None
             if not secret:
-                raise HTTPException(
-                    status_code=401, detail="Invalid tenant or signature"
-                )
+                raise InvalidWebhookSignature
 
             expected_signature = hmac.new(
                 secret.encode(), raw_body, hashlib.sha256
             ).hexdigest()
             if not hmac.compare_digest(expected_signature, signature):
-                raise HTTPException(
-                    status_code=401, detail="Invalid tenant or signature"
-                )
+                raise InvalidWebhookSignature
 
             try:
                 envelope = WebhookEnvelope.model_validate_json(raw_body)
@@ -94,9 +66,7 @@ def persist_webhook(
                     envelope.data
                 )
             except (ValidationError, KeyError) as error:
-                raise HTTPException(
-                    status_code=422, detail="Invalid webhook event"
-                ) from error
+                raise InvalidWebhookEvent from error
 
             company_id = company.id
             duplicate = _find_existing_sync(session, company.id, source, envelope.id)

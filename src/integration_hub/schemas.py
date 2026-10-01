@@ -1,4 +1,6 @@
+from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,3 +45,16 @@ class WebhookAccepted(BaseModel):
     sync_id: str
     status: Literal["pending", "processing", "retrying", "succeeded", "dead_letter"]
     duplicate: bool = False
+
+
+class SyncStatus(BaseModel):
+    id: UUID
+    source: str
+    target: str
+    entity_type: str
+    entity_id: str
+    status: Literal["pending", "processing", "retrying", "succeeded", "dead_letter"]
+    attempts: int
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime

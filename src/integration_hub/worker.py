@@ -1,26 +1,18 @@
 import logging
 import time
 from datetime import UTC, datetime, timedelta
-from typing import cast
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.sql.elements import ColumnElement
 
-from connectors import (
-    Customer,
-    Invoice,
-    Payment,
-    upsert_billing_customer,
-    upsert_crm_invoice,
-    upsert_crm_payment,
-)
-from database import SessionLocal
-from models import Company, Job, Sync, WebhookEvent
-from schemas import CustomerEventData, InvoiceEventData, PaymentEventData
+from integration_hub.database import SessionLocal
+from integration_hub.models import Company, Job, Sync, WebhookEvent
+from integration_hub.services import delivery
 
 LEASE_DURATION = timedelta(minutes=5)
 POLL_INTERVAL_SECONDS = 1
+MAX_ATTEMPTS = 5
 logger = logging.getLogger(__name__)
 
 
@@ -64,6 +56,7 @@ def process_job(job_id: UUID) -> bool:
         job.status = sync.status = "processing"
         job.attempts += 1
         sync.attempts = job.attempts
+        attempts = job.attempts
         job.locked_at = now
         sync_id = sync.id
         company_slug = company.slug
@@ -72,10 +65,10 @@ def process_job(job_id: UUID) -> bool:
         event_data = event.payload["data"]
 
     try:
-        _deliver(company_slug, source, event_type, event_data)
+        delivery.deliver_event(company_slug, source, event_type, event_data)
     except Exception as error:  # noqa: BLE001
         logger.error("Sync %s failed: %s", sync_id, type(error).__name__)
-        status = "dead_letter"
+        status = "retrying" if attempts < MAX_ATTEMPTS else "dead_letter"
         last_error = type(error).__name__
     else:
         status = "succeeded"
@@ -87,29 +80,12 @@ def process_job(job_id: UUID) -> bool:
         job.status = sync.status = status
         job.last_error = sync.last_error = last_error
         job.locked_at = None
+        if status == "retrying":
+            job.available_at = datetime.now(UTC) + timedelta(
+                seconds=2 ** (attempts - 1)
+            )
 
     return True
-
-
-def _deliver(
-    company_slug: str, source: str, event_type: str, event_data: dict[str, object]
-) -> None:
-    if (source, event_type) == ("crm", "customer.updated"):
-        data = CustomerEventData.model_validate(event_data)
-        upsert_billing_customer(company_slug, cast(Customer, data.model_dump()))
-        return
-
-    if (source, event_type) == ("billing", "invoice.updated"):
-        data = InvoiceEventData.model_validate(event_data)
-        upsert_crm_invoice(company_slug, cast(Invoice, data.model_dump()))
-        return
-
-    if (source, event_type) == ("billing", "payment.updated"):
-        data = PaymentEventData.model_validate(event_data)
-        upsert_crm_payment(company_slug, cast(Payment, data.model_dump()))
-        return
-
-    raise ValueError("Unsupported simulated event")
 
 
 def run_worker() -> None:

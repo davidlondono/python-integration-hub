@@ -1,4 +1,4 @@
-from connectors import (
+from integration_hub.connectors.simulated import (
     get_billing_customer,
     get_billing_invoice,
     get_billing_payment,

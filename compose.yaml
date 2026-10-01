@@ -11,7 +11,7 @@ services:
 
   worker:
     build: .
-    command: ["python", "worker.py"]
+    command: ["python", "-m", "integration_hub.worker"]
     environment:
       DATABASE_URL: postgresql+psycopg://integration_hub@db:5432/integration_hub
     depends_on:

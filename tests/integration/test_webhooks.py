@@ -7,9 +7,9 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from database import SessionLocal
-from main import app
-from models import Job, Sync, WebhookEvent
+from integration_hub.database import SessionLocal
+from integration_hub.main import app
+from integration_hub.models import Job, Sync, WebhookEvent
 
 client = TestClient(app)
 
