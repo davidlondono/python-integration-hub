@@ -41,4 +41,5 @@ class PaymentEventData(BaseModel):
 
 class WebhookAccepted(BaseModel):
     sync_id: str
-    status: Literal["pending"]
+    status: Literal["pending", "processing", "retrying", "succeeded", "dead_letter"]
+    duplicate: bool = False
