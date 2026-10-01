@@ -1,1 +1,8 @@
-print("Integration Hub listo para empezar.")
+from fastapi import FastAPI
+
+app = FastAPI(title="Integration Hub")
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}

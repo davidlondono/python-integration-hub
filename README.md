@@ -5,11 +5,23 @@ systems.
 
 ## Run
 
-Requires Python 3.14.
+Requires Python 3.14 and pip.
 
 ```sh
-python3 main.py
+python3 -m pip install -r requirements.txt
+python3 -m uvicorn main:app --reload
 ```
+
+The API responds at `http://127.0.0.1:8000/health`. OpenAPI docs are available
+at `http://127.0.0.1:8000/docs`.
+
+## Run with Docker Compose
+
+```sh
+docker compose up --build
+```
+
+The same API is available at `http://127.0.0.1:8000/health`.
 
 ## Quality checks
 
